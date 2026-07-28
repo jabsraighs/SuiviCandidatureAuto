@@ -1,0 +1,11 @@
+services:
+  candidatures:
+    build: .
+    container_name: suivi-candidatures
+    restart: unless-stopped
+    ports:
+      - "8080:8080"          # utilisé uniquement lors de la 1ère autorisation
+    volumes:
+      - ./data:/app/data     # credentials.json, token.json, state.json, candidatures.xlsx
+    environment:
+      - INTERVAL_HOURS=3     # change l'intervalle entre 2 passages (en heures)

@@ -56,11 +56,13 @@ PLATEFORMES_A_IGNORER = [
 CLASSIFICATION = {
     "Offre / Accepté": [
         "félicitations",
-        "avons le plaisir de vous",
+        "avons le plaisir de vous proposer",
+        "avons le plaisir de vous annoncer votre",
+        "avons le plaisir de vous compter parmi",
+        "avons le plaisir de vous accueillir",
         "proposition d'embauche",
         "offre d'embauche",
         "bienvenue dans l'équipe",
-        "bienvenue chez",
         "avez rejoint notre équipe",
         "contrat de travail",
     ],
@@ -106,3 +108,44 @@ CLASSIFICATION = {
         "du nouveau sur votre candidature",
     ],
 }
+
+# ---------------------------------------------------------------------------
+# EXCLUSION : évite les faux positifs qui ne sont pas de vraies candidatures
+# (alertes emploi, newsletters, notifications de compte...) mais qui
+# contiennent quand même un mot comme "candidature" ou "recrutement".
+# ---------------------------------------------------------------------------
+
+# Domaines d'expéditeur qui n'envoient QUE des alertes/newsletters d'offres
+# d'emploi, jamais de vrai suivi de candidature -> exclusion totale du domaine.
+EXPEDITEURS_DOMAINES_A_EXCLURE = [
+    "jobleads.com",
+    "talent.com",
+    "tekkit.io",
+]
+
+# Adresses précises à exclure (utile quand un même domaine envoie à la fois
+# de vraies confirmations de candidature ET des newsletters, ex. HelloWork :
+# on exclut seulement l'adresse newsletter, pas les confirmations réelles).
+EXPEDITEURS_EXACTS_A_EXCLURE = [
+    "newsletter@emails.hellowork.com",
+]
+
+# Si l'objet contient une de ces tournures, l'email est ignoré quel que soit
+# l'expéditeur : ce sont des formulations typiques d'alertes/newsletters ou
+# de notifications de compte, jamais d'un vrai suivi de candidature.
+MOTS_CLES_EXCLUSION_OBJET = [
+    "nouvelles offres",
+    "nouvelle offre",
+    "correspondant à votre recherche",
+    "recherche sauvegardée",
+    "à ne pas manquer",
+    "à découvrir aujourd'hui",
+    "à pourvoir cette semaine",
+    "offres d'emploi pour vous",
+    "emplois pour vous",
+    "mot de passe à usage unique",
+    "code de vérification",
+    "vérifiez votre adresse",
+    "confirmez votre adresse",
+    "confirmez votre e-mail",
+]

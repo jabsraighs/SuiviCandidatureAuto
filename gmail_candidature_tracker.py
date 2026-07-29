@@ -18,6 +18,7 @@ Installation & planification : voir README.md
 
 import os
 import re
+import sys
 import json
 import base64
 import unicodedata
@@ -233,6 +234,26 @@ def extraire_poste(subject):
 # ---------------------------------------------------------------------------
 # Lecture des messages Gmail
 # ---------------------------------------------------------------------------
+def doit_exclure(sender_email, subject):
+    """True si l'email est une alerte/newsletter d'offres d'emploi ou une
+    notification de compte, PAS une vraie candidature — malgré le mot
+    "candidature"/"recrutement" présent dans le texte."""
+    sender_email = (sender_email or "").lower()
+    domaine = sender_email.split("@")[-1]
+
+    if sender_email in [e.lower() for e in config.EXPEDITEURS_EXACTS_A_EXCLURE]:
+        return True
+
+    if any(domaine == d or domaine.endswith("." + d) for d in config.EXPEDITEURS_DOMAINES_A_EXCLURE):
+        return True
+
+    subj = (subject or "").lower()
+    if any(mot.lower() in subj for mot in config.MOTS_CLES_EXCLUSION_OBJET):
+        return True
+
+    return False
+
+
 def get_header(headers, name):
     for h in headers:
         if h["name"].lower() == name.lower():
@@ -249,6 +270,7 @@ def parse_sender(raw_from):
 
 def fetch_new_messages(service, query, processed_ids):
     nouveaux = []
+    ids_vus = []
     page_token = None
 
     while True:
@@ -272,6 +294,11 @@ def fetch_new_messages(service, query, processed_ids):
             snippet = msg.get("snippet", "")
 
             sender_name, sender_email = parse_sender(raw_from)
+
+            ids_vus.append(m["id"])
+
+            if doit_exclure(sender_email, subject):
+                continue
 
             try:
                 date_obj = datetime.strptime(
@@ -307,7 +334,7 @@ def fetch_new_messages(service, query, processed_ids):
     # plus récent (sinon un statut plus ancien pourrait écraser un plus
     # récent si Gmail les avait renvoyés dans le désordre).
     nouveaux.sort(key=lambda e: e["date_obj"])
-    return nouveaux
+    return nouveaux, ids_vus
 
 
 # ---------------------------------------------------------------------------
@@ -358,23 +385,25 @@ def construire_index(ws):
 
 def parser_date_fr(date_str):
     """Convertit une date au format 'dd/mm/YYYY' en objet datetime pour le
-    tri ; si le format est inattendu, place la ligne en fin de tri plutôt
-    que de planter."""
+    tri ; si le format est inattendu, renvoie la date la plus ancienne
+    possible pour que la ligne finisse en bas (le tri étant décroissant)
+    plutôt que de planter."""
     try:
         return datetime.strptime(date_str, "%d/%m/%Y")
     except (ValueError, TypeError):
-        return datetime.max
+        return datetime.min
 
 
 def trier_par_date(ws):
     """Retrie toutes les lignes du classeur par 'Date candidature'
-    croissante, en conservant la mise en forme (couleur du statut, police,
-    retour à la ligne de l'historique)."""
+    décroissante (les plus récentes en haut), puis par 'Dernière mise à
+    jour' décroissante en cas d'égalité. Conserve la mise en forme (couleur
+    du statut, police, retour à la ligne de l'historique)."""
     lignes = [[cell.value for cell in row] for row in ws.iter_rows(min_row=2)]
     if len(lignes) <= 1:
         return
 
-    lignes.sort(key=lambda r: parser_date_fr(r[0]))
+    lignes.sort(key=lambda r: (parser_date_fr(r[0]), parser_date_fr(r[4])), reverse=True)
 
     ws.delete_rows(2, ws.max_row - 1)
     for row in lignes:
@@ -442,6 +471,19 @@ def ajouter_lignes(ws, entrees):
 # Main
 # ---------------------------------------------------------------------------
 def main():
+    if "--trier-seulement" in sys.argv:
+        # Retrie le fichier existant sans se connecter à Gmail : utile pour
+        # remettre de l'ordre dans un fichier déjà rempli avant ce correctif.
+        if not os.path.exists(OUTPUT_PATH):
+            print(f"Aucun fichier trouvé à {OUTPUT_PATH}, rien à trier.")
+            return
+        wb = load_workbook(OUTPUT_PATH)
+        ws = wb.active
+        trier_par_date(ws)
+        wb.save(OUTPUT_PATH)
+        print(f"Fichier trié par date : {OUTPUT_PATH}")
+        return
+
     print(f"[{datetime.now()}] Démarrage du suivi des candidatures…")
 
     state = load_state()
@@ -449,8 +491,10 @@ def main():
     query = build_query(state["last_run"])
     print(f"Requête Gmail : {query}")
 
-    nouveaux = fetch_new_messages(service, query, set(state["processed_ids"]))
-    print(f"{len(nouveaux)} nouvel(le)(s) email(s) de candidature trouvé(s).")
+    nouveaux, ids_vus = fetch_new_messages(service, query, set(state["processed_ids"]))
+    nb_exclus = len(ids_vus) - len(nouveaux)
+    print(f"{len(nouveaux)} nouvel(le)(s) email(s) de candidature trouvé(s) "
+          f"({nb_exclus} email(s) ignoré(s) car alerte/newsletter).")
 
     if nouveaux:
         wb, ws = ouvrir_ou_creer_classeur()
@@ -462,7 +506,7 @@ def main():
         print(f"Fichier mis à jour : {OUTPUT_PATH}")
 
     state["last_run"] = datetime.now().isoformat()
-    state["processed_ids"] = list(set(state["processed_ids"]) | {e["id"] for e in nouveaux})
+    state["processed_ids"] = list(set(state["processed_ids"]) | set(ids_vus))
     save_state(state)
 
     print(f"[{datetime.now()}] Terminé.")

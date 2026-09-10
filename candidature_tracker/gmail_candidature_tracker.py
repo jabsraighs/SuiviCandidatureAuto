@@ -20,7 +20,9 @@ import os
 import re
 import sys
 import json
+import time
 import base64
+import shutil
 import unicodedata
 from datetime import datetime, timedelta
 
@@ -468,6 +470,40 @@ def ajouter_lignes(ws, entrees):
 
 
 # ---------------------------------------------------------------------------
+# Sauvegarde robuste (écriture atomique + retry si fichier verrouillé)
+# ---------------------------------------------------------------------------
+def sauvegarder_classeur(wb, chemin, tentatives=5, delai=2):
+    """Sauvegarde le classeur de façon sûre :
+    - écrit d'abord dans un fichier temporaire, puis le déplace vers le
+      chemin final (évite de corrompre le fichier si ça plante en cours
+      d'écriture) ;
+    - si le fichier cible est verrouillé (Excel ouvert, antivirus, sync
+      OneDrive...), réessaie plusieurs fois avant d'abandonner, laissant le
+      temps de fermer le fichier entre deux tentatives."""
+    tmp_path = chemin + ".tmp"
+
+    for essai in range(1, tentatives + 1):
+        try:
+            wb.save(tmp_path)
+            shutil.move(tmp_path, chemin)
+            return
+        except PermissionError:
+            if os.path.exists(tmp_path):
+                try:
+                    os.remove(tmp_path)
+                except OSError:
+                    pass
+            if essai == tentatives:
+                raise
+            print(
+                f"[Avertissement] '{chemin}' semble ouvert ou verrouillé "
+                f"(essai {essai}/{tentatives}). Fermez Excel si besoin. "
+                f"Nouvelle tentative dans {delai}s…"
+            )
+            time.sleep(delai)
+
+
+# ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 def main():
@@ -480,7 +516,7 @@ def main():
         wb = load_workbook(OUTPUT_PATH)
         ws = wb.active
         trier_par_date(ws)
-        wb.save(OUTPUT_PATH)
+        sauvegarder_classeur(wb, OUTPUT_PATH)
         print(f"Fichier trié par date : {OUTPUT_PATH}")
         return
 
@@ -500,7 +536,7 @@ def main():
         wb, ws = ouvrir_ou_creer_classeur()
         nb_nouvelles, nb_maj = ajouter_lignes(ws, nouveaux)
         trier_par_date(ws)
-        wb.save(OUTPUT_PATH)
+        sauvegarder_classeur(wb, OUTPUT_PATH)
         print(f"{nb_nouvelles} nouvelle(s) candidature(s) ajoutée(s), "
               f"{nb_maj} statut(s) mis à jour.")
         print(f"Fichier mis à jour : {OUTPUT_PATH}")

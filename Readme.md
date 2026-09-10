@@ -209,6 +209,8 @@ tant que les postes diffèrent).
 L'extraction d'entreprise/poste est faite par heuristique (regex) : elle ne
 sera pas parfaite à 100 %, tu peux corriger à la main dans Excel.
 
+
+supprimer le fichier token.json
 docker rm -f $(docker ps -aq)
 docker compose up --build -d
 docker compose exec candidatures python gmail_candidature_tracker.py --trier-seulement

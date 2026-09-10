@@ -5,7 +5,7 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY veille_emploi.py run_loop.py config.py gmail_alertes_emploi.py ./
+COPY veille_emploi.py run_loop.py config.py gmail_alertes_emploi.py excel_offres.py ./
 
 ENV DATA_DIR=/app/data
 ENV OAUTH_PORT=8080

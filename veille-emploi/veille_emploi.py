@@ -26,6 +26,7 @@ import feedparser
 import requests
 
 from config import RECHERCHES
+from excel_offres import ajouter_offres
 from gmail_alertes_emploi import recuperer_offres_email
 
 # Les recherches se configurent dans config.py, pas ici.
@@ -39,8 +40,11 @@ os.makedirs(DATA_DIR, exist_ok=True)
 # reproposer à chaque exécution.
 HISTORIQUE_PATH = os.path.join(DATA_DIR, "offres_vues.json")
 
-# Fichier de sortie lisible, régénéré à chaque passage.
+# Fichier de sortie lisible, régénéré à chaque passage (dernier passage seulement).
 SORTIE_PATH = os.path.join(DATA_DIR, "nouvelles_offres.md")
+
+# Fichier Excel cumulatif : jamais écrasé, chaque passage y ajoute des lignes.
+EXCEL_PATH = os.path.join(DATA_DIR, "offres.xlsx")
 
 
 def charger_historique():
@@ -106,6 +110,8 @@ def main():
 
     sauver_historique(liens_vus)
 
+    nb_ajoutees = ajouter_offres(EXCEL_PATH, toutes_nouvelles)
+
     horodatage = datetime.now().strftime("%Y-%m-%d %H:%M")
     with open(SORTIE_PATH, "w", encoding="utf-8") as f:
         f.write(f"# Nouvelles offres — {horodatage}\n\n")
@@ -122,7 +128,9 @@ def main():
                     f.write(f"- Résumé : {o['resume']}...\n")
                 f.write("\n")
 
-    print(f"{len(toutes_nouvelles)} nouvelle(s) offre(s) trouvée(s). Voir {SORTIE_PATH}")
+    print(f"{len(toutes_nouvelles)} nouvelle(s) offre(s) trouvée(s).")
+    print(f"  - Aperçu du dernier passage : {SORTIE_PATH}")
+    print(f"  - Historique cumulé ({nb_ajoutees} ligne(s) ajoutée(s)) : {EXCEL_PATH}")
 
 
 if __name__ == "__main__":

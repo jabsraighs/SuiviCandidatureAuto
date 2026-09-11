@@ -35,7 +35,9 @@ def _creer_classeur(chemin):
 
 
 def ajouter_offres(chemin_xlsx, offres):
-    """Ajoute les offres en fin de fichier. Crée le fichier s'il n'existe pas."""
+    """Ajoute les offres en haut du fichier (juste sous l'en-tête).
+    Les plus récentes apparaissent donc toujours en premier.
+    Crée le fichier s'il n'existe pas."""
     if not offres:
         return 0
 
@@ -46,9 +48,12 @@ def ajouter_offres(chemin_xlsx, offres):
         wb = _creer_classeur(chemin_xlsx)
         ws = wb["Offres"]
 
-    prochaine_ligne = ws.max_row + 1
     horodatage = datetime.now().strftime("%Y-%m-%d %H:%M")
 
+    # On insère autant de lignes vides que d'offres, juste après l'en-tête (ligne 1)
+    ws.insert_rows(2, amount=len(offres))
+
+    ligne = 2
     for offre in offres:
         valeurs = [
             horodatage,
@@ -58,9 +63,9 @@ def ajouter_offres(chemin_xlsx, offres):
             "",  # Statut, à remplir manuellement
         ]
         for col_idx, valeur in enumerate(valeurs, start=1):
-            cell = ws.cell(row=prochaine_ligne, column=col_idx, value=valeur)
+            cell = ws.cell(row=ligne, column=col_idx, value=valeur)
             cell.font = Font(name=POLICE)
-        prochaine_ligne += 1
+        ligne += 1
 
     wb.save(chemin_xlsx)
     return len(offres)

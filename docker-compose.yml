@@ -1,0 +1,22 @@
+services:
+  candidatures:
+    build: ./candidature_tracker
+    container_name: suivi-candidatures
+    restart: unless-stopped
+    ports:
+      - "8080:8080"          # utilisé uniquement lors de la 1ère autorisation
+    volumes:
+      - ./data:/app/data     # credentials.json, token.json, state.json, candidatures.xlsx
+    environment:
+      - INTERVAL_HOURS=3     # change l'intervalle entre 2 passages (en heures)
+
+  veille:
+    build: ./veille-emploi
+    container_name: veille-emploi
+    restart: unless-stopped
+    ports:
+      - "8081:8080"          # 8081 côté hôte pour éviter le conflit avec candidatures (8080 déjà pris)
+    volumes:
+      - ./veille-emploi/data:/app/data           # credentials.json, token_alertes.json, offres_vues.json, nouvelles_offres.md, offres.xlsx
+    environment:
+      - INTERVAL_HOURS=3     # change l'intervalle entre 2 passages (en heures)
